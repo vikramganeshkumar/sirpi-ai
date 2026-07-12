@@ -1,4 +1,7 @@
-google-generativeai
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+requests
 pypdf
-python-dotenv>=1.0.0
-requests>=2.31.0
+google-genai

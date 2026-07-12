@@ -1,37 +1,37 @@
-# --- Secrets ---
+# Environment / secrets
 .env
-.env.*
-*.key
-credentials.json
-config.json
-service-account*.json
+*.env
+!.env.example
 
-# --- Documents (don't push source/test PDFs to git) ---
-*.pdf
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.Python
+build/
+dist/
 
-# --- Generated output / logs ---
+# Data / logs generated at runtime
+chat_history.db
+*.db
 *.log
 guardrail_events.log
 rag_system.log
-rag_results.json
-batch_results.json
 
-# --- Python ---
-__pycache__/
-*.py[cod]
-*.egg-info/
-.eggs/
-build/
-dist/
-venv/
-.venv/
-env/
-.pytest_cache/
+# Uploaded / temp PDFs
+*.pdf
+!sample*.pdf
 
-# --- OS ---
+# Editor / OS cruft
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
 
-# --- IDE ---
-.vscode/
-.idea/
+# uvicorn reload artifacts
+*.pid

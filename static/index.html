@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Margin — PDF Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ===== Top bar (mobile) ===== -->
+  <header class="topbar">
+    <button class="icon-btn" id="toggle-sessions" aria-label="Toggle sessions">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <div class="topbar-title">
+      <span class="wordmark">Margin</span>
+      <span class="topbar-doc" id="topbar-doc">No document loaded</span>
+    </div>
+    <button class="icon-btn" id="toggle-doc" aria-label="Toggle document panel">
+      <svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><path d="M9 12h6M9 16h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+
+  <div class="shell">
+
+    <!-- ===== Left rail: sessions ===== -->
+    <aside class="rail" id="rail">
+      <div class="rail-head">
+        <span class="wordmark wordmark-rail">Margin</span>
+        <p class="rail-sub">Chat with what you upload. Every answer stays inside the document you gave it.</p>
+      </div>
+
+      <label class="upload-drop" id="upload-drop">
+        <input type="file" id="file-input" accept="application/pdf" hidden />
+        <svg viewBox="0 0 24 24" class="upload-icon"><path d="M12 3v12m0-12 4.5 4.5M12 3 7.5 7.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span class="upload-text">Upload a PDF</span>
+        <span class="upload-sub">or drop it here</span>
+      </label>
+      <div class="upload-status" id="upload-status" hidden></div>
+
+      <div class="rail-list-head">Sessions</div>
+      <div class="session-list" id="session-list">
+        <p class="session-empty">No sessions yet.</p>
+      </div>
+    </aside>
+
+    <!-- ===== Center: chat ===== -->
+    <main class="chat">
+      <div class="chat-thread" id="chat-thread">
+        <div class="empty-state" id="empty-state">
+          <span class="empty-eyebrow">Start here</span>
+          <h1>Upload a PDF to begin</h1>
+          <p>Margin reads the document, then answers only from what's in it. Every question you ask passes through four checks before it reaches the model — you'll see each one marked on your message.</p>
+        </div>
+      </div>
+
+      <form class="composer" id="composer">
+        <textarea
+          id="message-input"
+          placeholder="Ask about the document…"
+          rows="1"
+          disabled
+        ></textarea>
+        <button type="submit" class="send-btn" id="send-btn" disabled aria-label="Send">
+          <svg viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        </button>
+      </form>
+    </main>
+
+    <!-- ===== Right panel: document + guardrails ===== -->
+    <aside class="docpanel" id="docpanel">
+      <div class="docpanel-section">
+        <div class="docpanel-label">Document</div>
+        <div id="doc-name" class="doc-name">No document loaded</div>
+        <p id="doc-summary" class="doc-summary">Upload a PDF from the sidebar to see its summary here.</p>
+      </div>
+
+      <div class="docpanel-section">
+        <div class="docpanel-label">Guardrail pipeline</div>
+        <ul class="pipeline-legend">
+          <li><span class="dot dot-rate"></span>Rate — request frequency</li>
+          <li><span class="dot dot-length"></span>Length — query size cap</li>
+          <li><span class="dot dot-pattern"></span>Pattern — injection phrasing</li>
+          <li><span class="dot dot-topic"></span>Topic — on-document check</li>
+        </ul>
+        <p class="pipeline-note">Every message you send runs through all four, cheapest first. A trace strip under each of your messages shows exactly where it landed.</p>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
