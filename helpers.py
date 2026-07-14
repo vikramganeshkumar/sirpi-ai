@@ -19,19 +19,6 @@ except ImportError:
     sys.exit(1)
 
 
-def get_api_key(cli_arg: Optional[str] = None, env_var: str = "GOOGLE_API_KEY") -> str:
-    """Resolve the API key from a CLI arg first, then an environment variable.
-
-    Exits the process with a clear message if neither is set, so every
-    entry point fails the same way instead of each script rolling its own.
-    """
-    api_key = cli_arg or os.environ.get(env_var)
-    if not api_key:
-        print(f"Error: set the {env_var} environment variable, or pass --api-key")
-        sys.exit(1)
-    return api_key
-
-
 def extract_text_from_pdf(pdf_path: str) -> str:
     """Extract and concatenate text from every page of a PDF."""
     if not os.path.exists(pdf_path):

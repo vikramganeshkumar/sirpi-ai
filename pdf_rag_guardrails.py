@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-PDF RAG system with guardrails -- a hybrid setup:
-  - Gemini (Google API)   -> document summarization + answering questions
-  - Gemma (self-hosted, via Ollama) -> guardrail relevance classification
+PDF RAG system with guardrails -- fully local via Gemma/Ollama.
+
+All generation tasks (answering questions, relevance classification) use
+the same local Gemma model via Ollama. Document summarization is skipped
+(just uses first 300 chars as preview) to avoid model crashes on complex
+prompts. No external API calls, no Gemini key needed.
 
 Guardrail pipeline for every incoming query, in order (cheapest checks first
 so obvious junk never reaches a model at all):
@@ -27,25 +30,17 @@ from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 
-from helpers import extract_text_from_pdf, get_api_key, print_section, setup_logging, truncate_text
+from helpers import extract_text_from_pdf, print_section, setup_logging, truncate_text
 from model_client import call_ollama
-
-try:
-    import google.genai as genai
-except ImportError:
-    print("Error: google-genai not installed. Run: pip install -r requirements.txt")
-    sys.exit(1)
 
 load_dotenv()
 
 GEMMA_MODEL = os.environ.get("GEMMA")
 GEMMA_URL = os.environ.get("GEMMA_URL")
-# Gemini has been retiring model IDs quickly (gemini-2.5-flash started 404ing
-# for new API keys in July 2026 ahead of its official Oct 2026 EOL date).
-# Keeping this in .env means a retirement is a config change, not a code edit.
-# 'gemini-flash-latest' is a Google-maintained alias that auto-points to a
-# current, non-deprecated flash model.
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+
+if not GEMMA_MODEL or not GEMMA_URL:
+    print("Error: GEMMA and GEMMA_URL must be set in .env")
+    sys.exit(1)
 
 
 # Cheap local pre-filter for common prompt-injection / jailbreak phrasing.
@@ -73,7 +68,7 @@ class GuardrailConfig:
     max_query_length: int = 500
     max_retries: int = 2
     retry_backoff_seconds: float = 5.0
-    request_timeout_seconds: int = 180
+    request_timeout_seconds: int = 600
     fail_open: bool = False  # if the relevance check errors, block by default (safe)
     rate_limit_window_seconds: float = 60.0
     rate_limit_max_requests: int = 20
@@ -101,23 +96,18 @@ class RateLimiter:
 class RAGWithGuardrails:
     def __init__(
         self,
-        api_key: str,
         config: Optional[GuardrailConfig] = None,
-        gemini_model: str = GEMINI_MODEL,
         gemma_model: Optional[str] = None,
         gemma_url: Optional[str] = None,
     ):
-        # Gemini -- summary + answering
-        self.client = genai.Client(api_key=api_key)
-        self.gemini_model = gemini_model
-
-        # Gemma -- guardrail relevance check
+        # Gemma -- all generation (answering, relevance check)
+        # Document summarization is skipped (just uses text excerpt)
         self.gemma_model = gemma_model or GEMMA_MODEL
         self.gemma_url = gemma_url or GEMMA_URL
         if not self.gemma_model or not self.gemma_url:
             raise EnvironmentError(
-                "GEMMA and GEMMA_URL must be set in .env (needed for the "
-                "guardrail relevance check), or pass gemma_model/gemma_url directly"
+                "GEMMA and GEMMA_URL must be set in .env (needed for all "
+                "generation tasks), or pass gemma_model/gemma_url directly"
             )
 
         self.config = config or GuardrailConfig()
@@ -143,11 +133,11 @@ class RAGWithGuardrails:
         self.summary = document_summary
 
     def _create_document_summary(self) -> str:
-        prompt = (
-            "Briefly summarize what this document is about in 2-3 sentences:\n\n"
-            f"{truncate_text(self.text, 2000)}\n\nSummary:"
-        )
-        return self._generate_with_gemini(prompt).strip()
+        """Skip expensive summarization to avoid model crashes.
+        Just use the first 300 chars of the document as a preview."""
+        summary = truncate_text(self.text, 300)
+        logging.info("Using document excerpt as summary (skipped generation)")
+        return summary
 
     # ---------- guardrails (Gemma) ----------
 
@@ -249,23 +239,24 @@ class RAGWithGuardrails:
         allowed, reason, _trace = self.check_query_with_trace(query)
         return allowed, reason
 
-    # ---------- generation (Gemini) ----------
+    # ---------- generation (Gemma) ----------
 
-    def _generate_with_gemini(self, prompt: str) -> str:
-        last_error = None
-        for attempt in range(1, self.config.max_retries + 2):
-            try:
-                response = self.client.models.generate_content(model=self.gemini_model, contents=prompt)
-                return response.text
-            except Exception as e:
-                last_error = e
-                logging.warning("Gemini generation attempt %d failed: %s", attempt, e)
-                if attempt <= self.config.max_retries:
-                    time.sleep(self.config.retry_backoff_seconds * attempt)
-        raise RuntimeError(f"Gemini generation failed after {self.config.max_retries} retries: {last_error}")
+    def _generate_with_gemma(self, prompt: str) -> str:
+        """Call Gemma for generation. Used for answering questions."""
+        raw = call_ollama(
+            prompt=prompt,
+            model_name=self.gemma_model,
+            model_url=self.gemma_url,
+            retries=self.config.max_retries + 1,
+            timeout=self.config.request_timeout_seconds,
+            backoff_base_seconds=self.config.retry_backoff_seconds,
+        )
+        if raw is None:
+            raise RuntimeError(f"Gemma generation failed after {self.config.max_retries} retries")
+        return raw
 
     def answer_question(self, query: str, history: Optional[list] = None) -> str:
-        """Answer a question about the loaded document, via Gemini.
+        """Answer a question about the loaded document, via Gemma.
 
         `history` is an optional list of {"role": "user"|"assistant", "content": str}
         dicts, most-recent-last. Only the last few turns are included in the
@@ -287,7 +278,7 @@ class RAGWithGuardrails:
             'If the answer is not in the document, say "I don\'t find this information in the document."\n\n'
             "Answer:"
         )
-        return self._generate_with_gemini(prompt)
+        return self._generate_with_gemma(prompt)
 
     def process(self, pdf_path: str, query: str) -> str:
         """Load a PDF and answer one question, running it through guardrails first."""
@@ -341,10 +332,9 @@ def main():
         sys.exit(1)
 
     pdf_path = sys.argv[1]
-    api_key = get_api_key()
 
     try:
-        rag = RAGWithGuardrails(api_key=api_key)
+        rag = RAGWithGuardrails()
 
         if len(sys.argv) > 2 and sys.argv[2] == "--interactive":
             rag.interactive_mode(pdf_path)

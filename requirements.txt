@@ -4,4 +4,3 @@ python-multipart
 python-dotenv
 requests
 pypdf
-google-genai
